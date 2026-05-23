@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.conda/
+*.conda/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+apikey.txt
+*.apikey
+
+# Project runtime data
+data/projects/
+data/qa_test_crops/
+test_output/
+batch_output.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dev assets (not for release)
+_dev_assets/
+
+# Debug artifacts
+debug_render_test.png
+*.pyc

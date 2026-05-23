@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "textpatch-studio"
+version = "0.1.0"
+description = "AI生成图中文字后处理工具 - 检测乱码小字、OCR/LLM校正、擦除伪字、真实字体重新排版"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "python-multipart>=0.0.6",
+    "opencv-python>=4.8.0",
+    "Pillow>=10.0.0",
+    "numpy>=1.24.0",
+    "scikit-image>=0.21.0",
+    "requests>=2.31.0",
+    "pydantic>=2.5.0",
+    "python-dotenv>=1.0.0",
+    "aiofiles>=23.2.0",
+    "jsonschema>=4.20.0",
+    "scipy>=1.11.0",
+    "matplotlib>=3.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.25.0",
+]
+local-ocr = [
+    "rapidocr-onnxruntime>=1.3.0",
+]
+
+[project.scripts]
+textpatch = "cli.textpatch:main"
+
+[tool.setuptools.packages.find]
+include = ["backend*"]

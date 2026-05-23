@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TextPatch Studio</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+</head>
+<body>
+
+<!-- ── Top Toolbar ── -->
+<header id="toolbar">
+  <div class="tb-brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M3 9h6"/><path d="M3 15h6"/><line x1="12" y1="8" x2="18" y2="8"/><line x1="12" y1="12" x2="18" y2="12"/><line x1="12" y1="16" x2="16" y2="16"/>
+    </svg>
+    <span>TextPatch</span>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <div class="tb-group">
+    <button id="btn-import" onclick="App.importImage()" title="导入图片 (Ctrl+O)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>导入</span>
+    </button>
+    <button id="btn-auto-repair" onclick="App.runRepair('auto')" disabled title="Auto修复 - 完整AI检测+OCR+擦除">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.5 2a10 10 0 0 1 5 17.9"/><path d="M10.5 2a10 10 0 0 0-5 17.9"/></svg>
+      <span>Auto修复</span>
+    </button>
+    <button id="btn-simple-repair" onclick="App.runRepair('simple')" disabled title="Simple修复 - 快速颜色填充">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13,2 3,14 12,14 19,7"/><rect x="3" y="14" width="18" height="8" rx="2"/></svg>
+      <span>Simple修复</span>
+    </button>
+    <button id="btn-ai-correct" onclick="App.runLLMCorrection()" disabled title="AI校正 — 使用LLM自动修正OCR文字错误">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      <span>AI校正</span>
+    </button>
+    <label class="tb-toggle" title="修复流程中自动运行AI校正">
+      <input type="checkbox" id="toggle-auto-correct" onchange="App._correctionEnabled=this.checked">
+      <span>校正</span>
+    </label>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <div class="tb-group" id="mode-buttons">
+    <button class="mode-btn active" data-mode="select" onclick="App.setMode('select')" title="选择/移动文字框 (V)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>
+      <span>选择</span>
+    </button>
+    <button class="mode-btn" data-mode="restore" onclick="App.setMode('restore')" title="恢复框 - 还原框内原始像素 (R)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1,4 1,10 7,10"/><path d="M4 15a9 9 0 1 0 3-11.7L1 10"/></svg>
+      <span>恢复框</span>
+    </button>
+    <button class="mode-btn" data-mode="detect-auto" onclick="App.setMode('detect-auto')" title="补识别-Auto - 框选区域AI检测+OCR (A)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      <span>补识别-Auto</span>
+    </button>
+    <button class="mode-btn" data-mode="detect-simple" onclick="App.setMode('detect-simple')" title="补识别-Simple - 框选区域快速填充 (S)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+      <span>补识别-Simple</span>
+    </button>
+    <button class="mode-btn" data-mode="color-block" onclick="App.setMode('color-block')" title="色块覆盖 — 绘制纯色矩形遮盖区域 (B)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" fill="currentColor" opacity="0.4"/></svg>
+      <span>色块覆盖</span>
+    </button>
+    <button class="mode-btn" data-mode="selection" onclick="App.setMode('selection')" title="选取框 - 批量选择文字框 (M)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2"/></svg>
+      <span>选取框</span>
+    </button>
+  </div>
+
+  <div class="tb-sep"></div>
+
+  <!-- Font controls (shown when text box selected) -->
+  <div class="tb-group" id="font-controls" style="display:none;">
+    <div class="tb-font-picker" id="font-picker-container">
+      <input type="text" id="font-family-input" placeholder="搜索字体..." autocomplete="off"
+             oninput="TextboxManager.onFontSearch(this.value)"
+             onfocus="TextboxManager.onFontSearchFocus()"
+             onblur="TextboxManager.onFontSearchBlur()">
+      <div class="font-dropdown" id="font-dropdown" style="display:none;"></div>
+    </div>
+    <div class="tb-size-input">
+      <input type="number" id="font-size" value="24" min="6" max="200" step="1"
+             onchange="TextboxManager.applyStyle('fontSize', parseInt(this.value)||24)"
+             onkeydown="if(event.key==='Enter')this.blur()" title="字号">
+      <span class="tb-size-unit">px</span>
+    </div>
+    <button class="style-btn" onclick="TextboxManager.toggleBold()" id="btn-bold" title="粗体 (Ctrl+B)"><b>B</b></button>
+    <button class="style-btn" onclick="TextboxManager.toggleItalic()" id="btn-italic" title="斜体 (Ctrl+I)"><i>I</i></button>
+    <button class="style-btn" onclick="TextboxManager.toggleUnderline()" id="btn-underline" title="下划线 (Ctrl+U)"><u>U</u></button>
+    <input type="color" id="text-color" value="#000000" onchange="TextboxManager.applyStyle('fill', this.value)" title="文字颜色">
+    <button class="style-btn" onclick="TextboxManager.applyAlign('left')" title="左对齐">⫷</button>
+    <button class="style-btn" onclick="TextboxManager.applyAlign('center')" title="居中">⫿</button>
+    <button class="style-btn" onclick="TextboxManager.applyAlign('right')" title="右对齐">⫸</button>
+    <div class="tb-vsep"></div>
+    <button class="style-btn" onclick="TextboxManager.createNewTextBox()" id="btn-new-textbox" title="新建空白文字框">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    </button>
+    <button class="style-btn" onclick="FormulaEditor.open()" id="btn-formula" title="插入/编辑公式">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M4 4h16M8 12h8"/><text x="5" y="17" font-size="9" fill="currentColor" font-weight="bold">Σ</text></svg>
+    </button>
+    <div class="tb-vsep"></div>
+    <button class="style-btn danger" onclick="TextboxManager.deleteSelected()" title="删除选中 (Delete)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+    </button>
+  </div>
+
+  <div class="tb-spacer"></div>
+
+  <button id="btn-compare-bg" onclick="App.toggleCompareBg()" disabled title="切换背景 — 在原图和处理图之间切换 (Tab)">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><polyline points="9,6 3,12 9,18"/><polyline points="15,6 21,12 15,18"/></svg>
+    <span>背景对比</span>
+  </button>
+  <button id="btn-compare-side" onclick="App.toggleCompareSideBySide()" disabled title="并排参考 — 在右侧打开原图参考面板 (Ctrl+Shift+Q)">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="9" height="18" rx="1"/><rect x="13" y="3" width="9" height="18" rx="1"/></svg>
+    <span>参考图</span>
+  </button>
+
+  <button id="btn-export" onclick="App.openExport()" disabled title="导出图片 (Ctrl+E)">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span>导出</span>
+  </button>
+</header>
+
+<!-- ── Main Content ── -->
+<div id="main-container">
+  <!-- Left: Region List Panel -->
+  <aside id="region-panel">
+    <div class="rp-header">
+      <h3>文字区域</h3>
+      <span id="region-count" class="rp-badge">0</span>
+    </div>
+    <div class="rp-search">
+      <input type="text" id="region-search" placeholder="搜索..." oninput="TextboxManager.filterRegions(this.value)">
+    </div>
+    <div id="region-list"></div>
+    <div class="rp-footer">
+      <button class="rp-action-btn" onclick="TextboxManager.selectAllTextboxes()" title="全选文字框 (Ctrl+A)">全选</button>
+      <button class="rp-action-btn" onclick="TextboxManager.deselectAll()" title="取消选择 (Esc)">取消</button>
+    </div>
+  </aside>
+
+  <!-- Center: Canvas -->
+  <main id="canvas-container">
+    <canvas id="main-canvas"></canvas>
+    <div id="drop-overlay" class="drop-overlay" style="display:none;">
+      <div class="drop-hint">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>拖放图片到此处导入</span>
+      </div>
+    </div>
+    <div id="mode-indicator" class="mode-indicator" style="display:none;"></div>
+  </main>
+</div>
+
+<!-- ── Right Compare Panel (non-blocking side-by-side) ── -->
+<div id="compare-panel" style="display:none;">
+  <div class="compare-panel-header">
+    <span>原始图像参考</span>
+    <button class="compare-panel-close" onclick="App.toggleCompareSideBySide()" title="关闭参考图">✕</button>
+  </div>
+  <div class="compare-panel-body">
+    <img id="compare-ref-img" src="" alt="原图参考">
+  </div>
+  <div class="compare-panel-resize-handle" id="compare-panel-resize"></div>
+</div>
+
+<!-- ── Status Bar ── -->
+<footer id="status-bar">
+  <span id="status-text">就绪 — 请导入图片开始</span>
+  <div class="status-right">
+    <span class="status-item" id="zoom-display" title="画布缩放">100%</span>
+    <span class="status-sep">|</span>
+    <span class="status-item" id="mode-display">选择</span>
+    <span class="status-sep">|</span>
+    <span class="status-item" id="canvas-size-display">—</span>
+  </div>
+</footer>
+
+<!-- ── Toast Notifications Container ── -->
+<div id="toast-container"></div>
+
+<!-- ── Loading Overlay ── -->
+<div id="overlay-loading" class="overlay" style="display:none;">
+  <div class="loading-card">
+    <div class="spinner"></div>
+    <p id="loading-text">处理中...</p>
+    <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+    <button id="btn-cancel-operation" class="btn-cancel loading-cancel-btn" style="display:none;" onclick="App.abortOperation()">取消操作</button>
+  </div>
+</div>
+
+<!-- ── Export Dialog ── -->
+<div id="overlay-export" class="overlay" style="display:none;">
+  <div class="dialog">
+    <div class="dialog-header">
+      <h3>导出设置</h3>
+      <button class="dialog-close" onclick="App.closeExport()" title="关闭">✕</button>
+    </div>
+    <div class="dialog-body">
+      <div class="dialog-row">
+        <label>格式</label>
+        <div class="dialog-select-wrap">
+          <select id="export-format">
+            <option value="png">PNG — 无损压缩</option>
+            <option value="jpeg">JPEG — 有损压缩，文件小</option>
+            <option value="webp">WebP — 新一代格式</option>
+          </select>
+        </div>
+      </div>
+      <div class="dialog-row">
+        <label>分辨率</label>
+        <div class="dialog-select-wrap">
+          <select id="export-scale">
+            <option value="1">1× 原始尺寸</option>
+            <option value="2">2× 高清</option>
+            <option value="3">3× 超高清</option>
+          </select>
+        </div>
+      </div>
+      <div class="dialog-row">
+        <label>质量</label>
+        <div class="dialog-range-wrap">
+          <input type="range" id="export-quality" min="50" max="100" value="95">
+          <span id="export-quality-val" class="dialog-range-val">95</span>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn-cancel" onclick="App.closeExport()">取消</button>
+      <button class="btn-primary" onclick="App.doExport()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        导出
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Formula Editor Dialog ── -->
+<div id="overlay-formula" class="overlay" style="display:none;">
+  <div class="dialog formula-dialog">
+    <div class="dialog-header">
+      <h3>公式编辑器 (LaTeX)</h3>
+      <button class="dialog-close" onclick="FormulaEditor.close()" title="关闭">✕</button>
+    </div>
+    <div class="dialog-body formula-body">
+      <div class="formula-symbol-palette" id="formula-symbol-palette"></div>
+      <textarea id="formula-input" placeholder="输入LaTeX公式，例如: x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}" rows="3" spellcheck="false"></textarea>
+      <div class="formula-preview-wrap">
+        <div class="formula-preview-label">预览:</div>
+        <div class="formula-preview" id="formula-preview">
+          <span class="formula-placeholder">在上方输入LaTeX公式查看预览</span>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn-cancel" onclick="FormulaEditor.close()">取消</button>
+      <button class="btn-primary" id="btn-insert-formula" onclick="FormulaEditor.insert()">插入公式</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── LLM Correction Dialog ── -->
+<div id="overlay-correction" class="overlay" style="display:none;">
+  <div class="dialog correction-dialog">
+    <div class="dialog-header">
+      <h3>AI校正结果</h3>
+      <button class="dialog-close" onclick="App.closeCorrection()" title="关闭">✕</button>
+    </div>
+    <div class="dialog-body" id="correction-body"></div>
+    <div class="dialog-footer">
+      <button class="btn-cancel" onclick="App.closeCorrection()">关闭</button>
+      <button class="btn-primary" id="btn-accept-all-corrections" onclick="App.acceptAllCorrections()">全部接受</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Color Picker Popup (for color blocks) ── -->
+<div id="color-picker-popup" class="color-picker-popup" style="display:none;">
+  <div class="color-picker-swatches" id="color-swatches"></div>
+  <div class="color-picker-opacity">
+    <label>透明度 <span id="opacity-val">85%</span></label>
+    <input type="range" id="color-opacity-slider" min="10" max="100" value="85" step="5"
+           oninput="document.getElementById('opacity-val').textContent=this.value+'%'">
+  </div>
+  <div class="color-picker-custom">
+    <input type="color" id="color-picker-input" value="#ff6b6b">
+    <button class="btn-icon" id="btn-eyedropper" onclick="PostProcess.pickScreenColor()" title="屏幕取色（类似PPT取色管）">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22l1-1h3l9-9"/><path d="M18 13l-7-7 1.5-1.5a2.828 2.828 0 0 1 4 4L13 13"/></svg>
+    </button>
+    <button class="btn-primary btn-small" onclick="PostProcess.confirmColorBlock()">确定</button>
+    <button class="btn-cancel btn-small" onclick="PostProcess.hideColorPicker()">取消</button>
+  </div>
+</div>
+
+<!-- ── Right-Click Context Menu ── -->
+<div id="context-menu" class="context-menu" style="display:none;">
+  <div class="ctx-text-only">
+  <div class="ctx-section ctx-font-section">
+    <div class="ctx-label">字体</div>
+    <input type="text" id="ctx-font-input" class="ctx-font-input" placeholder="搜索字体..." autocomplete="off"
+           oninput="TextboxManager.onCtxFontSearch(this.value)"
+           onfocus="TextboxManager.onCtxFontSearchFocus()"
+           onblur="TextboxManager.onCtxFontSearchBlur()">
+    <div class="font-dropdown ctx-font-dropdown" id="ctx-font-dropdown" style="display:none;"></div>
+  </div>
+  <div class="ctx-section ctx-size-section">
+    <div class="ctx-label">大小</div>
+    <input type="number" id="ctx-font-size" value="24" min="6" max="200" step="1"
+           onchange="TextboxManager.applyStyle('fontSize', parseInt(this.value)||24)"
+           onkeydown="if(event.key==='Enter')this.blur()">
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-row">
+    <button class="ctx-btn ctx-bold" onclick="TextboxManager.toggleBold();ContextMenu._syncBtns()" title="粗体 (Ctrl+B)"><b>B</b></button>
+    <button class="ctx-btn ctx-italic" onclick="TextboxManager.toggleItalic();ContextMenu._syncBtns()" title="斜体 (Ctrl+I)"><i>I</i></button>
+    <button class="ctx-btn ctx-underline" onclick="TextboxManager.toggleUnderline();ContextMenu._syncBtns()" title="下划线 (Ctrl+U)"><u>U</u></button>
+    <button class="ctx-btn ctx-strikethrough" id="ctx-btn-strike" onclick="TextboxManager.toggleStrikethrough();ContextMenu._syncBtns()" title="删除线"><s>S</s></button>
+    <input type="color" id="ctx-color" value="#000000" onchange="TextboxManager.applyStyle('fill', this.value)" title="文字颜色">
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-row">
+    <button class="ctx-btn" onclick="TextboxManager.applyAlign('left');ContextMenu.close()" title="左对齐">⫷ 左对齐</button>
+    <button class="ctx-btn" onclick="TextboxManager.applyAlign('center');ContextMenu.close()" title="居中">⫿ 居中</button>
+    <button class="ctx-btn" onclick="TextboxManager.applyAlign('right');ContextMenu.close()" title="右对齐">⫸ 右对齐</button>
+  </div>
+  </div><!-- /.ctx-text-only -->
+  <div class="ctx-sep"></div>
+  <div class="ctx-row">
+    <button class="ctx-btn" onclick="ContextMenu.orderLayer('bringToFront')" title="置顶">⤒ 置顶</button>
+    <button class="ctx-btn" onclick="ContextMenu.orderLayer('bringForward')" title="上移">↑ 上移</button>
+    <button class="ctx-btn" onclick="ContextMenu.orderLayer('sendBackwards')" title="下移">↓ 下移</button>
+    <button class="ctx-btn" onclick="ContextMenu.orderLayer('sendToBack')" title="置底">⤓ 置底</button>
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-row">
+    <button class="ctx-btn ctx-danger" onclick="ContextMenu.deleteObject()" title="删除">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      删除对象
+    </button>
+  </div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="file-input" accept="image/*" style="display:none" onchange="App.handleFileSelect(event)">
+
+<!-- Scripts -->
+<script src="js/api.js"></script>
+<script src="js/canvas-manager.js"></script>
+<script src="js/textbox-manager.js"></script>
+<script src="js/postprocess.js"></script>
+<script src="js/formula-editor.js"></script>
+<script src="js/undo-manager.js"></script>
+<script src="js/clipboard-manager.js"></script>
+<script src="js/context-menu.js"></script>
+<script src="js/export.js"></script>
+<script src="js/toolbar.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
