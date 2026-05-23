@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import app_config
-from backend.api import projects, regions, ocr, correction, inpaint, render, export
+from backend.api import projects, regions, ocr, correction, inpaint, render, export, jobs, project_jobs
 from backend.exceptions import register_exception_handlers
 
 logging.basicConfig(
@@ -112,6 +112,8 @@ def create_app() -> FastAPI:
     app.include_router(inpaint.router)
     app.include_router(render.router)
     app.include_router(export.router)
+    app.include_router(jobs.router)
+    app.include_router(project_jobs.router)
 
     register_exception_handlers(app)
 
