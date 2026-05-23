@@ -163,6 +163,18 @@ def register_exception_handlers(app):
     app.add_exception_handler(TextPatchError, textpatch_exception_handler)
     app.add_exception_handler(Exception, general_exception_handler)
 
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError):
+        logger.warning("Value error (422): %s", str(exc)[:200])
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "UnprocessableEntity",
+                "detail": str(exc)[:500],
+                "guidance": "Check that all IDs and parameter values are valid.",
+            },
+        )
+
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError):
         logger.warning("Validation error: %s", exc.errors())

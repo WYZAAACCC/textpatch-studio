@@ -58,6 +58,10 @@ async def create_project(
     pipeline: Pipeline = Depends(get_pipeline),
 ):
     from backend.config import app_config
+    import re
+
+    # Sanitize project name: strip HTML tags, limit length
+    safe_name = re.sub(r"<[^>]*>", "", name).strip()[:200] or "Untitled"
 
     if not FileStore.is_allowed_file(file.filename):
         raise HTTPException(
@@ -71,7 +75,7 @@ async def create_project(
     try:
         from backend.core.image_validation import validate_image_file, InvalidImageError
         validate_image_file(tmp_path, app_config.storage)
-        project = pipeline.create_project(name, tmp_path)
+        project = pipeline.create_project(safe_name, tmp_path)
     except InvalidImageError as e:
         raise HTTPException(status_code=400, detail=str(e))
     finally:
@@ -95,7 +99,10 @@ async def get_project(
     project_id: str,
     pipeline: Pipeline = Depends(get_pipeline),
 ):
-    project = pipeline.get_project(project_id)
+    try:
+        project = pipeline.get_project(project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     if not project:
         raise ProjectNotFoundError(project_id)
     return project.to_dict()
