@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from backend.core.pipeline import Pipeline
+from backend.dependencies import get_pipeline
 from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError, ImageNotFoundError, NoFontAvailableError
 
@@ -12,10 +13,6 @@ router = APIRouter(
     dependencies=[Depends(require_api_token)],
 )
 
-
-def get_pipeline() -> Pipeline:
-    from backend.config import app_config
-    return Pipeline(app_config)
 
 
 @router.post("/{project_id}/render")

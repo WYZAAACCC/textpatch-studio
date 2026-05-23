@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.core.pipeline import Pipeline
+from backend.dependencies import get_pipeline
 from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError, ImageNotFoundError, ImageReadError
 
@@ -19,10 +20,6 @@ class InpaintRequest(BaseModel):
     region_ids: Optional[list] = None
     method: str = "auto"
 
-
-def get_pipeline() -> Pipeline:
-    from backend.config import app_config
-    return Pipeline(app_config)
 
 
 @router.post("/{project_id}/inpaint")

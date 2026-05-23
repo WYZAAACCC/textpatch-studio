@@ -55,6 +55,10 @@ def _get_health_status() -> dict:
             "action": "Set DEEPSEEK_API_KEY environment variable or create apikey.txt.",
         })
 
+    font_download_enabled = __import__("os").environ.get(
+        "TEXTPATCH_ENABLE_FONT_DOWNLOAD", "false"
+    ).lower() in ("1", "true", "yes")
+
     status = "ok" if not issues or all(i["severity"] != "error" for i in issues) else "degraded"
 
     return {
@@ -64,14 +68,22 @@ def _get_health_status() -> dict:
             "fonts": {
                 "available": fonts_available,
                 "count": fonts_count,
+                "download_enabled": font_download_enabled,
             },
             "ocr": {
                 "local_available": local_ocr_available,
                 "paddle_api_configured": paddle_configured,
+                "provider": app_config.ocr.provider,
             },
             "llm": {
                 "configured": llm_configured,
                 "provider": app_config.llm.provider,
+                "mock_in_use": not llm_configured,
+            },
+            "inpaint": {
+                "provider": app_config.inpaint.provider,
+                "method": app_config.inpaint.method,
+                "lama_real": False,
             },
         },
         "issues": issues,

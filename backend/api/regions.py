@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from backend.core.pipeline import Pipeline
+from backend.dependencies import get_pipeline
 from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError
 
@@ -26,10 +27,6 @@ class RegionUpdateRequest(BaseModel):
     style: Optional[dict] = None
     status: Optional[str] = None
 
-
-def get_pipeline() -> Pipeline:
-    from backend.config import app_config
-    return Pipeline(app_config)
 
 
 @router.get("/{project_id}/regions")

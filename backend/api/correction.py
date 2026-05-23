@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.core.pipeline import Pipeline
+from backend.dependencies import get_pipeline
 from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError
 
@@ -26,10 +27,6 @@ class CorrectRequest(BaseModel):
     model: str = "deepseek-v4-flash"
     auto_accept: bool = False
 
-
-def get_pipeline() -> Pipeline:
-    from backend.config import app_config
-    return Pipeline(app_config)
 
 
 @router.post("/{project_id}/correct")

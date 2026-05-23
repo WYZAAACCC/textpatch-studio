@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from backend.core.pipeline import Pipeline
+from backend.dependencies import get_pipeline
 from backend.security import require_api_token
 from backend.exceptions import (
     ProjectNotFoundError,
@@ -24,10 +25,6 @@ class DetectRequest(BaseModel):
     scales: list[float] = Field(default_factory=lambda: [1, 2, 3])
     language: str = Field("zh-CN", max_length=16)
 
-
-def get_pipeline() -> Pipeline:
-    from backend.config import app_config
-    return Pipeline(app_config)
 
 
 @router.post("/{project_id}/detect")

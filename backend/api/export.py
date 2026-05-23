@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 from backend.core.pipeline import Pipeline
+from backend.dependencies import get_pipeline
 from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError, ImageNotFoundError
 
@@ -24,10 +25,6 @@ class ExportRequest(BaseModel):
     scale: float = Field(1.0, ge=0.1, le=4.0)
     include_project_file: bool = False
 
-
-def get_pipeline() -> Pipeline:
-    from backend.config import app_config
-    return Pipeline(app_config)
 
 
 @router.post("/{project_id}/export")

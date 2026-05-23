@@ -6,6 +6,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from backend.core.pipeline import Pipeline
+from backend.dependencies import get_pipeline
 from backend.security import require_api_token
 from backend.storage.file_store import FileStore
 from backend.exceptions import ProjectNotFoundError
@@ -27,10 +28,6 @@ class ProjectResponse(BaseModel):
 class ProjectListResponse(BaseModel):
     projects: list
 
-
-def get_pipeline() -> Pipeline:
-    from backend.config import app_config
-    return Pipeline(app_config)
 
 
 async def _save_upload_chunked(file: UploadFile, max_bytes: int) -> Path:
