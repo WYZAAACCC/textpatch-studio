@@ -1,4 +1,4 @@
-from fastapi import Header, HTTPException, Depends
+from fastapi import Header, HTTPException
 
 from backend.config import app_config
 
@@ -12,11 +12,17 @@ def require_api_token(
 
     expected = app_config.security.api_token
     if not expected:
-        raise HTTPException(500, "Auth is required but TEXTPATCH_API_TOKEN is not set")
+        raise HTTPException(
+            status_code=500,
+            detail="Auth is required but TEXTPATCH_API_TOKEN is not set",
+        )
 
     token = x_textpatch_token
-    if authorization and authorization.lower().startswith("bearer "):
-        token = authorization[7:]
+    if authorization and str(authorization).lower().startswith("bearer "):
+        token = str(authorization)[7:]
 
     if token != expected:
-        raise HTTPException(401, "Invalid or missing API token")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API token",
+        )

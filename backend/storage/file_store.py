@@ -16,10 +16,10 @@ class FileStore:
         self.data_dir = data_dir
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
-    def _project_dir(self, project_id: str) -> Path:
+    def _project_dir(self, project_id: str, create: bool = False) -> Path:
         from backend.storage.project_store import ProjectStore
         store = ProjectStore(self.data_dir)
-        return store._project_dir(project_id)
+        return store._project_dir(project_id, create=create)
 
     def save_original(self, project_id: str, source_path: Path, filename: str) -> Path:
         from backend.config import app_config
@@ -28,7 +28,7 @@ class FileStore:
         validate_project_id(project_id)
         img = validate_image_file(source_path, app_config.storage)
 
-        project_dir = self._project_dir(project_id)
+        project_dir = self._project_dir(project_id, create=True)
         original_path = project_dir / "original.png"
 
         if img.mode == "RGBA":
@@ -47,13 +47,13 @@ class FileStore:
         return original_path
 
     def save_clean_base(self, project_id: str, image: Image.Image) -> Path:
-        project_dir = self._project_dir(project_id)
+        project_dir = self._project_dir(project_id, create=True)
         path = project_dir / "clean_base.png"
         image.save(str(path), "PNG")
         return path
 
     def save_final(self, project_id: str, image: Image.Image) -> Path:
-        project_dir = self._project_dir(project_id)
+        project_dir = self._project_dir(project_id, create=True)
         path = project_dir / "final.png"
         image.save(str(path), "PNG")
         return path
@@ -79,8 +79,8 @@ class FileStore:
     ) -> Path:
         from backend.storage.project_store import ProjectStore
         store = ProjectStore(self.data_dir)
+        store._regions_dir(project_id, create=True)
         path = store.get_region_path(project_id, region_id, suffix)
-        path.parent.mkdir(parents=True, exist_ok=True)
         image.save(str(path), "PNG")
         return path
 

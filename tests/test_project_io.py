@@ -74,7 +74,7 @@ class TestProjectStore:
         assert len(loaded.regions) == 1
 
     def test_load_nonexistent(self, project_store):
-        loaded = project_store.load("nonexistent")
+        loaded = project_store.load("p_20260425_a1b2c3d4")
         assert loaded is None
 
     def test_delete(self, project_store, sample_project):
@@ -91,7 +91,7 @@ class TestProjectStore:
     def test_project_exists(self, project_store, sample_project):
         project_store.save(sample_project)
         assert project_store.project_exists(sample_project.id) is True
-        assert project_store.project_exists("nonexistent") is False
+        assert project_store.project_exists("p_20260425_a1b2c3d4") is False
 
 
 class TestProjectSerialization:
@@ -190,7 +190,7 @@ class TestFileStore:
         assert FileStore.is_allowed_file("test.pdf") is False
 
     def test_save_and_get_original(self, file_store, tmp_dir):
-        project_id = "test_project_001"
+        project_id = "p_20260425_0a1b2c3d"
         img_path = tmp_dir / "test_input.png"
         img = __import__("PIL").Image.new("RGB", (800, 600), (255, 255, 255))
         img.save(str(img_path))
