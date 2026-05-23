@@ -48,6 +48,22 @@ class RenderConfig:
 class StorageConfig:
     data_dir: Path = field(default_factory=lambda: Path("data/projects"))
     max_file_size_mb: int = 50
+    max_image_pixels: int = 40_000_000
+    max_image_width: int = 12000
+    max_image_height: int = 12000
+    allowed_mime_types: tuple = (
+        "image/png", "image/jpeg", "image/webp", "image/tiff"
+    )
+
+
+@dataclass
+class SecurityConfig:
+    require_auth: bool = False
+    api_token: str = ""
+    allowed_origins: list[str] = field(default_factory=lambda: [
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ])
 
 
 @dataclass
@@ -57,7 +73,8 @@ class AppConfig:
     inpaint: InpaintConfig = field(default_factory=InpaintConfig)
     render: RenderConfig = field(default_factory=RenderConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
-    host: str = "0.0.0.0"
+    security: SecurityConfig = field(default_factory=SecurityConfig)
+    host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
 
@@ -117,6 +134,22 @@ def load_config() -> AppConfig:
     env_debug = os.environ.get("TEXTPATCH_DEBUG", "")
     if env_debug.lower() in ("1", "true", "yes"):
         config.debug = True
+
+    # Security config
+    config.security.require_auth = os.environ.get(
+        "TEXTPATCH_REQUIRE_AUTH", "false"
+    ).lower() in ("1", "true", "yes")
+    config.security.api_token = os.environ.get("TEXTPATCH_API_TOKEN", "")
+    env_origins = os.environ.get("TEXTPATCH_ALLOWED_ORIGINS", "")
+    if env_origins:
+        config.security.allowed_origins = [
+            o.strip() for o in env_origins.split(",") if o.strip()
+        ]
+
+    config.host = os.environ.get("TEXTPATCH_HOST", "127.0.0.1")
+    env_port = os.environ.get("TEXTPATCH_PORT", "")
+    if env_port:
+        config.port = int(env_port)
 
     return config
 

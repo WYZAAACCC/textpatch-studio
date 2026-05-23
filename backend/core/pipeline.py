@@ -172,14 +172,44 @@ class Pipeline:
         self.project_store.save(project)
         return project
 
+    def get_llm_client(self, provider: str | None = None, model: str | None = None):
+        key = (provider, model)
+        if not hasattr(self, "_llm_clients"):
+            self._llm_clients = {}
+        if key in self._llm_clients:
+            return self._llm_clients[key]
+
+        if provider is None and model is None:
+            client = self.llm_client
+        elif provider == "deepseek" or provider is None:
+            client = DeepSeekClient(
+                api_key=self.config.llm.api_key,
+                api_base=self.config.llm.api_base,
+                model=model or self.config.llm.model,
+                timeout=self.config.llm.timeout,
+                max_retries=self.config.llm.max_retries,
+                temperature=self.config.llm.temperature,
+                top_p=self.config.llm.top_p,
+            )
+        elif provider == "mock":
+            client = MockLLMClient()
+        else:
+            raise ValueError(f"Unknown LLM provider: {provider}")
+        self._llm_clients[key] = client
+        return client
+
     def correct(self, project_id: str, auto_accept: bool = False,
-                progress_callback=None) -> Project:
+                progress_callback=None,
+                provider: str | None = None,
+                model: str | None = None) -> Project:
         project = self.project_store.load(project_id)
         if not project:
             raise ValueError(f"Project {project_id} not found")
 
+        llm_client = self.get_llm_client(provider=provider, model=model)
+
         project.regions = correct_regions(
-            project.regions, self.llm_client, auto_accept,
+            project.regions, llm_client, auto_accept,
             max_workers=self.config.llm.max_workers,
             progress_callback=progress_callback,
         )
@@ -322,14 +352,15 @@ class Pipeline:
         return project
 
     def export_project(self, project_id: str, format: str = "png",
-                       quality: int = 100, include_project_file: bool = True) -> Path:
+                       quality: int = 100, scale: float = 1.0,
+                       include_project_file: bool = True) -> Path:
         project = self.project_store.load(project_id)
         if not project:
             raise ValueError(f"Project {project_id} not found")
 
         return export_project(
             project, self.project_store, self.file_store,
-            format=format, quality=quality,
+            format=format, quality=quality, scale=scale,
             include_project_file=include_project_file,
         )
 

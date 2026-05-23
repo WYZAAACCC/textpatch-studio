@@ -87,10 +87,10 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=app_config.security.allowed_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-TextPatch-Token"],
     )
 
     app.include_router(projects.router)
@@ -112,13 +112,17 @@ def create_app() -> FastAPI:
 
     @app.get("/api/projects/{project_id}/image/{image_type}")
     async def get_project_image(project_id: str, image_type: str):
-        """Serve project images (original, clean_base, final)."""
+        """Serve project images (original, clean_base, final, preview)."""
+        import mimetypes
         from backend.core.pipeline import Pipeline
         from fastapi.responses import FileResponse
         pl = Pipeline(app_config)
         project = pl.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
+
+        if image_type not in {"original", "clean_base", "final", "preview"}:
+            raise HTTPException(status_code=404, detail=f"Unknown image type: {image_type}")
 
         path = None
         if image_type == "original":
@@ -127,10 +131,15 @@ def create_app() -> FastAPI:
             path = project.clean_base_path
         elif image_type == "final":
             path = project.final_image_path
+        elif image_type == "preview":
+            from backend.storage.file_store import FileStore
+            fs = FileStore(app_config.storage.data_dir)
+            path = fs.get_preview(project_id)
 
         if not path or not Path(path).exists():
             raise HTTPException(status_code=404, detail=f"Image {image_type} not available")
-        return FileResponse(path, media_type="image/png")
+        media_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+        return FileResponse(path, media_type=media_type)
 
     @app.get("/api/fonts")
     async def list_fonts():

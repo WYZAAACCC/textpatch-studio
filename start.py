@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 PORT = 8000
-HOST = "0.0.0.0"
+HOST = "127.0.0.1"
 URL = f"http://localhost:{PORT}"
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -31,6 +31,15 @@ def kill_port(port):
             return True
     print("  端口空闲")
     return False
+
+
+def _parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(description="TextPatch Studio 一键启动")
+    parser.add_argument("--host", default="127.0.0.1", help="监听地址")
+    parser.add_argument("--port", type=int, default=8000, help="监听端口")
+    parser.add_argument("--kill-port", action="store_true", help="显式终止占用端口的进程")
+    return parser.parse_args()
 
 
 def _has_uvicorn(python_path):
@@ -73,6 +82,11 @@ def find_python():
 
 
 def main():
+    args = _parse_args()
+    global HOST, PORT
+    HOST = args.host
+    PORT = args.port
+
     os.chdir(PROJECT_DIR)
     print(f"TextPatch Studio — 一键启动")
     print(f"项目目录: {PROJECT_DIR}")
@@ -86,9 +100,22 @@ def main():
         sys.exit(1)
     print(f"Python:    {python_exe}\n")
 
-    # 2. Kill existing process on port
+    # 2. Check port
     print("[1/3] 检查端口占用...")
-    kill_port(PORT)
+    if args.kill_port:
+        kill_port(PORT)
+    else:
+        result = subprocess.run(
+            ["netstat", "-ano"], capture_output=True, text=True
+        )
+        port_in_use = any(
+            f":{PORT}" in line and "LISTENING" in line
+            for line in result.stdout.splitlines()
+        )
+        if port_in_use:
+            print(f"  端口 {PORT} 已被占用。可使用 --port {PORT+1} 或 --kill-port 显式终止。")
+            sys.exit(1)
+        print("  端口空闲")
 
     # 3. Start uvicorn server
     print(f"[2/3] 启动后端服务...")

@@ -5,6 +5,7 @@ Provides user-friendly error messages with actionable guidance.
 
 from __future__ import annotations
 import logging
+from pathlib import Path
 from typing import Optional
 
 from fastapi import Request
@@ -55,7 +56,8 @@ class ImageReadError(TextPatchError):
     status_code = 400
 
     def __init__(self, path: str):
-        self.detail = f"Failed to read image file: {path}"
+        filename = Path(path).name if path else "unknown"
+        self.detail = f"Failed to read image file: {filename}"
         self.guidance = (
             "The image file may be corrupted or in an unsupported format. "
             "Supported formats: PNG, JPG, JPEG, BMP, TIFF."

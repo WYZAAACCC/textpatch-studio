@@ -15,25 +15,23 @@ TextPatch Studio 提供三步后处理流程：
 ## 项目结构
 
 ```
-textpatch-studio/
 ├── backend/             # FastAPI Python 后端
 │   ├── api/             # REST API 路由
 │   ├── core/            # 核心流程 (Pipeline)
 │   ├── models/          # 数据模型
-│   ├── llm_adapters/    # LLM 适配器 (DeepSeek)
+│   ├── llm_adapters/    # LLM 适配器 (DeepSeek / Mock)
 │   ├── ocr_adapters/    # OCR 适配器 (RapidOCR / PaddleOCR)
-│   ├── inpaint_adapters/# Inpainting 适配器 (OpenCV)
-│   ├── renderer/        # 文字渲染引擎
+│   ├── inpaint_adapters/# Inpainting 适配器 (OpenCV Telea/NS + SimpleFill)
+│   ├── renderer/        # 文字渲染引擎 (PIL)
 │   └── storage/         # 存储层
-├── frontend/            # Vite + Konva.js 前端
+├── frontend/            # Vanilla JS + Fabric.js 前端 (Vite 静态服务)
 │   ├── js/              # 核心 JS 模块
 │   ├── css/             # 样式
-│   └── src/             # React 组件 (TypeScript)
+│   └── index.html       # 主页面
 ├── cli/                 # 命令行工具
-├── scripts/             # 工具脚本
 ├── tests/               # 测试
-├── fonts/               # 字体目录 (运行时下载)
-└── data/                # 项目数据 (运行时生成, gitignored)
+├── fonts/               # 字体目录 (手动放入或开启下载)
+└── data/                # 项目数据 (运行时生成)
 ```
 
 ## 快速开始
@@ -41,41 +39,42 @@ textpatch-studio/
 ### 环境要求
 
 - Python >= 3.11
-- Node.js >= 18 (前端开发)
 
 ### 安装
 
 ```bash
-# 安装 Python 依赖
 pip install -r requirements.txt
 
 # 可选: 安装本地 OCR 引擎
 pip install rapidocr-onnxruntime
 
-# 前端依赖 (开发模式)
-cd frontend && npm install
+# 可选: 安装开发依赖
+pip install -e ".[dev]"
 ```
 
 ### 配置
 
 ```bash
-# 方式一: 环境变量
+# 环境变量 (推荐)
 export DEEPSEEK_API_KEY=sk-your-key
 
-# 方式二: 在项目根目录创建 apikey.txt
+# 或: 在项目根目录创建 apikey.txt
 echo "sk-your-key" > apikey.txt
 ```
 
-详见 `.env.example` 了解所有配置项。
+详见 [.env.example](.env.example) 了解所有配置项。
 
 ### 运行
 
 ```bash
-# 一键启动 (自动查找 Python 环境并启动后端 + 打开前端)
+# 一键启动 (默认监听 127.0.0.1:8000)
 python start.py
 
-# 或手动启动
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
+# 手动启动
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
+
+# 公网部署时需开启认证
+TEXTPATCH_REQUIRE_AUTH=true TEXTPATCH_API_TOKEN=your-token python start.py --host 0.0.0.0
 ```
 
 访问 `http://localhost:8000` 打开前端界面。
@@ -83,35 +82,52 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ### CLI 模式
 
 ```bash
-# 直接处理单张图片
-python run_pipeline.py "path/to/image.png"
+# 安装 CLI
+pip install -e .
 
-# 批量处理
-python run_batch.py
+# 命令行使用
+textpatch --help
+textpatch serve --host 127.0.0.1 --port 8000
 ```
+
+## 安全说明
+
+- 默认监听 `127.0.0.1`（仅本地访问）
+- 公网部署请设置 `TEXTPATCH_REQUIRE_AUTH=true` 和 `TEXTPATCH_API_TOKEN`
+- 远程字体下载默认关闭，需 `TEXTPATCH_ENABLE_FONT_DOWNLOAD=true` 开启
+- 远程 LLM/OCR 调用需显式配置 API key
+- 无 API key 时 Mock LLM 会明确标记 `confidence=0, needs_human=true`
+
+详见 [.env.example](.env.example) 的安全配置项。
 
 ## API 概览
 
-| 路径 | 说明 |
-|------|------|
-| `GET /api/health` | 系统健康检查 |
-| `POST /api/projects` | 创建项目并上传图片 |
-| `POST /api/regions/detect` | 检测文字区域 |
-| `POST /api/ocr/recognize` | OCR 识别 |
-| `POST /api/correction/correct` | LLM 文字校正 |
-| `POST /api/inpaint/erase` | 擦除伪文字 |
-| `POST /api/render/render` | 渲染真实文字 |
-| `POST /api/export/export` | 导出最终图片 |
-| `GET /api/fonts` | 列出可用字体 |
-| `POST /api/fonts/download` | 下载默认中文字体 |
+| 路径 | 方法 | 说明 |
+|------|------|------|
+| `/api/health` | GET | 系统健康检查 (公开) |
+| `/api/projects` | POST | 创建项目并上传图片 |
+| `/api/projects` | GET | 列出所有项目 |
+| `/api/projects/{id}` | GET | 获取项目详情 |
+| `/api/projects/{id}/regions` | GET | 列出项目文字区域 |
+| `/api/projects/{id}/regions/{region_id}` | PATCH | 更新区域文本/样式/状态 |
+| `/api/projects/{id}/detect` | POST | 检测文字区域 |
+| `/api/projects/{id}/ocr` | POST | OCR 识别 |
+| `/api/projects/{id}/correct` | POST | LLM 文字校正 (SSE) |
+| `/api/projects/{id}/inpaint` | POST | 擦除伪文字 |
+| `/api/projects/{id}/render` | POST | 渲染真实文字 |
+| `/api/projects/{id}/export` | POST | 导出 (png/jpeg/webp/zip) |
+| `/api/projects/{id}/image/{type}` | GET | 获取项目图片 |
+| `/api/projects/{id}/restore` | POST | 还原区域背景 |
+| `/api/fonts` | GET | 列出可用字体 (公开) |
+| `/api/fonts/download` | POST | 下载默认中文字体 |
 
 ## 技术栈
 
 - **后端**: FastAPI + Uvicorn + OpenCV + Pillow + scikit-image
-- **前端**: Vite + Konva.js + React + Zustand
+- **前端**: Vanilla JS + Fabric.js + Vite
 - **OCR**: RapidOCR (本地) / PaddleOCR (API)
 - **LLM**: DeepSeek API
-- **Inpainting**: OpenCV (Telea / NS)
+- **Inpainting**: OpenCV (Telea / NS) + SimpleFill
 
 ## License
 

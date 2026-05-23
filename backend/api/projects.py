@@ -3,13 +3,18 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.core.pipeline import Pipeline
+from backend.security import require_api_token
 from backend.storage.file_store import FileStore
 from backend.exceptions import ProjectNotFoundError
 
-router = APIRouter(prefix="/api/projects", tags=["projects"])
+router = APIRouter(
+    prefix="/api/projects",
+    tags=["projects"],
+    dependencies=[Depends(require_api_token)],
+)
 
 
 class ProjectResponse(BaseModel):
@@ -28,26 +33,50 @@ def get_pipeline() -> Pipeline:
     return Pipeline(app_config)
 
 
+async def _save_upload_chunked(file: UploadFile, max_bytes: int) -> Path:
+    import tempfile
+    suffix = Path(file.filename or "").suffix.lower()
+    total = 0
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp_path = Path(tmp.name)
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                tmp_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Uploaded file exceeds maximum size of {max_bytes // (1024*1024)} MB",
+                )
+            tmp.write(chunk)
+    return tmp_path
+
+
 @router.post("", response_model=ProjectResponse)
 async def create_project(
     name: str = "Untitled",
     file: UploadFile = File(...),
     pipeline: Pipeline = Depends(get_pipeline),
 ):
+    from backend.config import app_config
+
     if not FileStore.is_allowed_file(file.filename):
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type: {file.filename}",
         )
 
-    import tempfile
-    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = Path(tmp.name)
+    max_bytes = app_config.storage.max_file_size_mb * 1024 * 1024
+    tmp_path = await _save_upload_chunked(file, max_bytes)
 
     try:
+        from backend.core.image_validation import validate_image_file, InvalidImageError
+        validate_image_file(tmp_path, app_config.storage)
         project = pipeline.create_project(name, tmp_path)
+    except InvalidImageError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -76,10 +105,10 @@ async def get_project(
 
 
 class RestoreRequest(BaseModel):
-    x: int
-    y: int
-    width: int
-    height: int
+    x: int = Field(..., ge=0)
+    y: int = Field(..., ge=0)
+    width: int = Field(..., ge=1, le=12000)
+    height: int = Field(..., ge=1, le=12000)
 
 
 @router.post("/{project_id}/restore")
@@ -100,11 +129,11 @@ async def restore_region(
 
 
 class DetectRegionRequest(BaseModel):
-    x: int
-    y: int
-    width: int
-    height: int
-    mode: str = "auto"  # "auto" or "simple"
+    x: int = Field(..., ge=0)
+    y: int = Field(..., ge=0)
+    width: int = Field(..., ge=1, le=12000)
+    height: int = Field(..., ge=1, le=12000)
+    mode: str = "auto"
 
 
 @router.post("/{project_id}/detect-region")
@@ -127,7 +156,7 @@ async def detect_region(
 
 
 class BatchUpdateRequest(BaseModel):
-    region_ids: list
+    region_ids: list[str] = Field(..., min_length=1, max_length=500)
     style: Optional[dict] = None
     status: Optional[str] = None
 

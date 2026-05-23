@@ -1,10 +1,16 @@
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
 from backend.models.project import Project
+from backend.storage.path_safety import (
+    validate_project_id,
+    validate_region_id,
+    ensure_child_path,
+)
 
 
 class ProjectStore:
@@ -12,28 +18,37 @@ class ProjectStore:
         self.data_dir = data_dir
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
-    def _project_dir(self, project_id: str) -> Path:
+    def _project_dir(self, project_id: str, create: bool = False) -> Path:
+        validate_project_id(project_id)
         p = self.data_dir / f"{project_id}.textpatch"
-        p.mkdir(parents=True, exist_ok=True)
+        p = ensure_child_path(self.data_dir, p)
+        if create:
+            p.mkdir(parents=True, exist_ok=True)
         return p
 
-    def _project_json(self, project_id: str) -> Path:
-        return self._project_dir(project_id) / "project.json"
+    def _project_json(self, project_id: str, create: bool = False) -> Path:
+        return self._project_dir(project_id, create=create) / "project.json"
 
-    def _regions_dir(self, project_id: str) -> Path:
-        d = self._project_dir(project_id) / "regions"
-        d.mkdir(parents=True, exist_ok=True)
+    def _regions_dir(self, project_id: str, create: bool = False) -> Path:
+        d = self._project_dir(project_id, create=create) / "regions"
+        if create:
+            d.mkdir(parents=True, exist_ok=True)
         return d
 
     def save(self, project: Project) -> None:
+        validate_project_id(project.id)
         project.updated_at = datetime.now().isoformat()
-        json_path = self._project_json(project.id)
+        json_path = self._project_json(project.id, create=True)
         data = project.to_dict()
-        with open(json_path, "w", encoding="utf-8") as f:
+        tmp = json_path.with_suffix(".json.tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, json_path)
 
     def load(self, project_id: str) -> Optional[Project]:
-        json_path = self._project_json(project_id)
+        json_path = self._project_json(project_id, create=False)
         if not json_path.exists():
             return None
         with open(json_path, "r", encoding="utf-8") as f:
@@ -41,6 +56,7 @@ class ProjectStore:
         return Project.from_dict(data)
 
     def delete(self, project_id: str) -> bool:
+        validate_project_id(project_id)
         project_dir = self._project_dir(project_id)
         if not project_dir.exists():
             return False
@@ -68,7 +84,11 @@ class ProjectStore:
         return results
 
     def get_region_path(self, project_id: str, region_id: str, suffix: str) -> Path:
-        return self._regions_dir(project_id) / f"{region_id}_{suffix}"
+        validate_project_id(project_id)
+        validate_region_id(region_id)
+        regions_dir = self._regions_dir(project_id, create=False)
+        path = ensure_child_path(regions_dir, regions_dir / f"{region_id}_{suffix}")
+        return path
 
     def project_exists(self, project_id: str) -> bool:
         return self._project_json(project_id).exists()

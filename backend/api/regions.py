@@ -1,17 +1,28 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 from backend.core.pipeline import Pipeline
+from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError
 
-router = APIRouter(prefix="/api/projects", tags=["regions"])
+router = APIRouter(
+    prefix="/api/projects",
+    tags=["regions"],
+    dependencies=[Depends(require_api_token)],
+)
+
+ALLOWED_STYLE_KEYS = {
+    "font_family", "font_size", "color", "stroke_color",
+    "bold", "italic", "underline", "letter_spacing",
+    "line_height", "align", "v_align",
+}
 
 
 class RegionUpdateRequest(BaseModel):
-    final_text: Optional[str] = None
+    final_text: Optional[str] = Field(None, max_length=2000)
     style: Optional[dict] = None
     status: Optional[str] = None
 
@@ -39,11 +50,15 @@ async def update_region(
     request: RegionUpdateRequest,
     pipeline: Pipeline = Depends(get_pipeline),
 ):
+    style = request.style
+    if style is not None:
+        style = {k: v for k, v in style.items() if k in ALLOWED_STYLE_KEYS}
+
     project = pipeline.update_region(
         project_id,
         region_id,
         final_text=request.final_text,
-        style=request.style,
+        style=style,
         status=request.status,
     )
     if not project:

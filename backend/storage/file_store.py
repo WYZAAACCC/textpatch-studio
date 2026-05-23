@@ -5,6 +5,8 @@ from typing import Optional
 
 from PIL import Image
 
+from backend.storage.path_safety import validate_project_id
+
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif"}
 
@@ -20,10 +22,15 @@ class FileStore:
         return store._project_dir(project_id)
 
     def save_original(self, project_id: str, source_path: Path, filename: str) -> Path:
+        from backend.config import app_config
+        from backend.core.image_validation import validate_image_file, InvalidImageError
+
+        validate_project_id(project_id)
+        img = validate_image_file(source_path, app_config.storage)
+
         project_dir = self._project_dir(project_id)
         original_path = project_dir / "original.png"
 
-        img = Image.open(source_path)
         if img.mode == "RGBA":
             bg = Image.new("RGB", img.size, (255, 255, 255))
             bg.paste(img, mask=img.split()[3])

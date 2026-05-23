@@ -3,9 +3,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from backend.core.pipeline import Pipeline
+from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError, ImageNotFoundError, NoFontAvailableError
 
-router = APIRouter(prefix="/api/projects", tags=["render"])
+router = APIRouter(
+    prefix="/api/projects",
+    tags=["render"],
+    dependencies=[Depends(require_api_token)],
+)
 
 
 def get_pipeline() -> Pipeline:

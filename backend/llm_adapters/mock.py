@@ -8,18 +8,12 @@ logger = logging.getLogger(__name__)
 
 class MockLLMClient(LLMClient):
     def correct_text(self, request: TextCorrectionRequest) -> TextCorrectionResponse:
-        best = request.ocr_best
-        needs_human = False
-
-        if request.risk_flags:
-            needs_human = True
-
         return TextCorrectionResponse(
-            corrected_text=best,
-            confidence=0.95,
-            correction_type="unchanged",
+            corrected_text=request.ocr_best,
+            confidence=0.0,
+            correction_type="unavailable",
             changed_chars=[],
             uncertain_chars=[],
-            needs_human=needs_human,
-            raw_response={"mock": True},
+            needs_human=True,
+            raw_response={"mock": True, "reason": "LLM API key not configured"},
         )

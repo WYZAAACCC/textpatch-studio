@@ -5,9 +5,14 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.core.pipeline import Pipeline
+from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError, ImageNotFoundError, ImageReadError
 
-router = APIRouter(prefix="/api/projects", tags=["inpaint"])
+router = APIRouter(
+    prefix="/api/projects",
+    tags=["inpaint"],
+    dependencies=[Depends(require_api_token)],
+)
 
 
 class InpaintRequest(BaseModel):

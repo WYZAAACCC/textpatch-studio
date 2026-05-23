@@ -38,4 +38,4 @@ local-ocr = [
 textpatch = "cli.textpatch:main"
 
 [tool.setuptools.packages.find]
-include = ["backend*"]
+include = ["backend*", "cli*"]

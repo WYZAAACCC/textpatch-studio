@@ -117,6 +117,13 @@ def _correct_region(
 
     region.llm = llm_info
 
+    # ── Block auto-accept and mark mock/unavailable ──
+    if response.raw_response.get("mock") is True:
+        region.status = "needs_review"
+        if "llm_unavailable" not in region.risk_flags:
+            region.risk_flags.append("llm_unavailable")
+        return region
+
     # ── Apply LLM formula detection ──
     if response.is_formula and response.latex:
         region.is_formula = True

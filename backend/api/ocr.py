@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.core.pipeline import Pipeline
+from backend.security import require_api_token
 from backend.exceptions import (
     ProjectNotFoundError,
     ImageNotFoundError,
@@ -11,13 +12,17 @@ from backend.exceptions import (
     NoOCREngineError,
 )
 
-router = APIRouter(prefix="/api/projects", tags=["ocr"])
+router = APIRouter(
+    prefix="/api/projects",
+    tags=["ocr"],
+    dependencies=[Depends(require_api_token)],
+)
 
 
 class DetectRequest(BaseModel):
     detect_small_text: bool = True
-    scales: list = [1, 2, 3]
-    language: str = "zh-CN"
+    scales: list[float] = Field(default_factory=lambda: [1, 2, 3])
+    language: str = Field("zh-CN", max_length=16)
 
 
 def get_pipeline() -> Pipeline:

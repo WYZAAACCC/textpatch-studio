@@ -10,10 +10,15 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.core.pipeline import Pipeline
+from backend.security import require_api_token
 from backend.exceptions import ProjectNotFoundError
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/projects", tags=["correction"])
+router = APIRouter(
+    prefix="/api/projects",
+    tags=["correction"],
+    dependencies=[Depends(require_api_token)],
+)
 
 
 class CorrectRequest(BaseModel):
@@ -59,30 +64,36 @@ async def correct_text(
         yield f"data: {json.dumps({'type': 'start', 'total': total})}\n\n"
 
         loop = asyncio.get_event_loop()
-        future = loop.run_in_executor(
-            ThreadPoolExecutor(max_workers=1),
-            lambda: pipeline.correct(
-                project_id,
-                auto_accept=request.auto_accept,
-                progress_callback=progress_cb,
-            ),
-        )
-
-        last_completed = 0
-        while not future.done():
-            try:
-                completed = progress_queue.get(timeout=0.1)
-                last_completed = completed
-                yield f"data: {json.dumps({'type': 'progress', 'completed': completed, 'total': total})}\n\n"
-            except queue.Empty:
-                await asyncio.sleep(0.05)
-
+        executor = ThreadPoolExecutor(max_workers=1)
         try:
-            result = future.result()
-            yield f"data: {json.dumps({'type': 'complete', 'regions': [r.to_dict() for r in result.regions]})}\n\n"
-        except Exception as e:
-            logger.error(f"Correction failed: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            future = loop.run_in_executor(
+                executor,
+                lambda: pipeline.correct(
+                    project_id,
+                    auto_accept=request.auto_accept,
+                    provider=request.provider,
+                    model=request.model,
+                    progress_callback=progress_cb,
+                ),
+            )
+
+            last_completed = 0
+            while not future.done():
+                try:
+                    completed = progress_queue.get(timeout=0.1)
+                    last_completed = completed
+                    yield f"data: {json.dumps({'type': 'progress', 'completed': completed, 'total': total})}\n\n"
+                except queue.Empty:
+                    await asyncio.sleep(0.05)
+
+            try:
+                result = future.result()
+                yield f"data: {json.dumps({'type': 'complete', 'regions': [r.to_dict() for r in result.regions]})}\n\n"
+            except Exception as e:
+                logger.error(f"Correction failed: {e}")
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     return StreamingResponse(
         event_generator(),
